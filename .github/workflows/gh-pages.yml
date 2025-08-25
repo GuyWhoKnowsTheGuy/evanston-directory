@@ -12,7 +12,7 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v1
       with:
-        dotnet-version: 8.0.x
+        dotnet-version: 9.0.x
     - name: Version Increment
       id: version
       uses: reecetech/version-increment@2024.4.4
@@ -25,6 +25,8 @@ jobs:
           version_files: "**/*.csproj"
           version_mask: "1.1.1.1"
           version_overwrite: "${{ steps.version.outputs.major-version }}.${{ steps.version.outputs.minor-version }}.${{ steps.version.outputs.patch-version }}.0" 
+    - name: .NET WASM Workload
+      run: dotnet workload install wasm-tools
     - name: Publish with dotnet
       run: dotnet publish ./src --configuration Release --output build
     - name: Deploy to Github Pages

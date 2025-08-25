@@ -1,9 +1,12 @@
 ﻿@page "/"
+@implements IDisposable
 @using Evanston.Component
+@using Evanston.Util
 @using OneOf
 @using OneOf.Types
-@inject DirectoryDto Directory
 @inject Mappers Mappers
+@inject PersistentComponentState ApplicationState
+@inject NavigationManager NavigationManager
 
 <PageTitle>Businesses | My Evanston</PageTitle>
 
@@ -39,7 +42,7 @@
 <br/>
 <br/>
 <MudStack Spacing="3">
-    @foreach (var business in Directory.Businesses.Select(b => Mappers.BusinessDtoToModel(b)))
+    @foreach (var business in (_directory ?? new()).Businesses.Select(b => Mappers.BusinessDtoToModel(b)))
     {
         <div style="display:@(!_selectedCategories.Any() || _selectedCategories.All(c => business.Categories.Contains(c)) ? "block" : "none");">
             <MudCard Outlined="true">
@@ -186,6 +189,8 @@
     </DialogContent>
 </MudDialog>
 @code {
+    private static readonly string ViewStateKey = typeof(Home).FullName!;
+
     private const Breakpoint BreakPoint = Breakpoint.MdAndUp;
     private const string WebsiteColumnName = "Website:";
     private const string EmailColumnName = "Email:";
@@ -200,6 +205,37 @@
     private bool _showScalabilityDialog;
     private bool _showStandardizationDialog;
     private bool _showAceDialog;
+    private DirectoryDto? _directory;
+    private PersistingComponentStateSubscription _persistViewStateSubscription;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (ApplicationState.TryTakeFromJson<ViewState>(ViewStateKey, out var restored))
+        {
+            _directory = restored?.Directory;
+        }
+        else
+        {
+            using var http = new HttpClient();
+            var directory = await http.GetFromJsonAsync<DirectoryDto>($"{NavigationManager.BaseUri}api/v1/directory.json", new System.Text.Json.JsonSerializerOptions() { Converters = { new UnknownEnumConverter() } });
+            _directory = directory;
+        }
+
+        // Call at the end to avoid a potential race condition at app shutdown
+        _persistViewStateSubscription = ApplicationState.RegisterOnPersisting(PersistViewStateAsync);
+    }
+
+    private Task PersistViewStateAsync()
+    {
+        ApplicationState.PersistAsJson(ViewStateKey, new ViewState() { Directory = _directory });
+
+        return Task.CompletedTask;
+    }
+
+    void IDisposable.Dispose()
+    {
+        _persistViewStateSubscription.Dispose();
+    }
 
     private RowViewModel[] GetRows(Business business) =>
     [
@@ -267,4 +303,9 @@
         (BusinessCategory.Food, "Restaurants, Food, Catering"),
         (BusinessCategory.Retail, "Shopping and Specialty Retail"),
     ];
+
+    private class ViewState
+    {
+        public DirectoryDto? Directory { get; set; }
+    }
 }

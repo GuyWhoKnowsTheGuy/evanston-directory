@@ -1,27 +1,38 @@
-using System.Net.Http.Json;
 using Blazored.LocalStorage;
-using Microsoft.AspNetCore.Components.Web;
-using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
-using MudBlazor.Services;
 using Evanston;
 using Evanston.Util;
+using Microsoft.AspNetCore.Components.Web;
+using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
+using Microsoft.VisualBasic;
+using MudBlazor.Services;
+using System.Net.Http.Json;
+using System.Runtime;
 using DirectoryDto = Evanston.DirectoryDto;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
-builder.RootComponents.Add<App>("#app");
-builder.RootComponents.Add<HeadOutlet>("head::after");
 
-var http = new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) };
-builder.Services.AddScoped(_ => http);
+// Determine whether root components are already registered via prerednered HTML contents.
+// See https://github.com/jsakamoto/BlazorWasmPreRendering.Build
+if (!builder.RootComponents.Any())
+{
+    builder.RootComponents.Add<App>("#app");
+    builder.RootComponents.Add<HeadOutlet>("head::after");
+}
 
-var cacheBypass = $"?v={typeof(Program).Assembly.GetName().Version?.ToString(3)}";
-var directory = await http.GetFromJsonAsync<DirectoryDto>($"{http.BaseAddress.AbsoluteUri}/api/v1/directory.json{cacheBypass}", new System.Text.Json.JsonSerializerOptions() { Converters = { new UnknownEnumConverter() } });
-builder.Services
-    .AddSingleton(directory ?? new())
-    .AddSingleton(new Mappers());
-
-builder.Services.AddMudServices();
-
-builder.Services.AddBlazoredLocalStorage();
+// Do not change this line, it's for prerendering. See https://github.com/jsakamoto/BlazorWasmPreRendering.Build
+ConfigureServices(builder.Services, builder.HostEnvironment.BaseAddress, builder.Configuration);
 
 await builder.Build().RunAsync();
+
+// This method signature follows a convention to enable prerendering.
+// See https://github.com/jsakamoto/BlazorWasmPreRendering.Build
+static void ConfigureServices(IServiceCollection services, string baseAddress, IConfiguration configuration)
+{
+    var http = new HttpClient { BaseAddress = new Uri(baseAddress) };
+    services.AddScoped(sp => http);
+
+    services        
+        .AddSingleton(sp => new Mappers())
+        .AddMudServices()
+        .AddBlazoredLocalStorage();
+}
