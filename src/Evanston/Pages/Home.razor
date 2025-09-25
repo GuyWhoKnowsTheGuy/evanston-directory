@@ -219,6 +219,8 @@
             using var http = new HttpClient();
             var directory = await http.GetFromJsonAsync<DirectoryDto>($"{NavigationManager.BaseUri}api/v1/directory.json", new System.Text.Json.JsonSerializerOptions() { Converters = { new UnknownEnumConverter() } });
             _directory = directory;
+
+            await PersistViewStateAsync();
         }
 
         // Call at the end to avoid a potential race condition at app shutdown
